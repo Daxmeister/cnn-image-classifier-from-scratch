@@ -49,10 +49,10 @@ class Convolver():
         Assumes that height == width of image
         
         Args:
-            X = ndarray (32, 32, 3, n)
+            X = ndarray (h, w, 3, n)
             Fs = ndarray (f, f, 3, nf)
         Returns:
-            conv_outputs = ndarray (32/f, 32/f, nf, n)
+            conv_outputs = ndarray (h/f, w/f, nf, n)
         """
         MX = self._construct_MX(X, Fs)
         
