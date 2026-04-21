@@ -14,6 +14,7 @@ class Debug_data():
         
         
         self.load_data = np.load(debug_file)
+        
         X = self.load_data['X']
         self.Fs = self.load_data['Fs']
         n = X.shape[1]
@@ -37,5 +38,22 @@ class Debug_data():
               " Should be: ", ground_truth.shape, 
               "\nShape same? ", conv_output.shape==ground_truth.shape)
         print("\nDifference in values: ",np.sum(np.abs(conv_output-ground_truth)))
+        
+    def load_X_Fs(self):
+        X = self.load_data['X']
+        Fs = self.load_data['Fs']
+        n = X.shape[1]
+        X_ims = np.transpose(X.reshape((32, 32, 3, n), order='F'), (1, 0, 2, 3))
+        return X_ims, Fs
+    
+    def load_W_b(self):
+        W1 = self.load_data['W1']
+        W2 = self.load_data['W2']
+        b1 = self.load_data['b1']
+        b2 = self.load_data['b2']
+        return [W1, W2], [b1, b2]
+    
+    def load_fp_output(self):
+        return self.load_data['conv_flat'], self.load_data['X1'], self.load_data['P']
         
         
