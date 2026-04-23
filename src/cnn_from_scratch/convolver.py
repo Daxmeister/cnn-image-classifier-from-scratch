@@ -43,7 +43,7 @@ class Convolver():
         
         return conv_output
 
-    def conv_mat_mul(self, X, Fs):
+    def conv_mat_mul(self, MX, Fs):
         """
         Performs convolution using efficient matrix multiplication.
         Assumes that height == width of image
@@ -54,13 +54,12 @@ class Convolver():
         Returns:
             conv_outputs = ndarray (h/f, w/f, nf, n)
         """
-        MX = self._construct_MX(X, Fs)
         
         n_p = MX.shape[0]
         n_f = Fs.shape[3]
-        n = X.shape[3]
+        n = MX.shape[2]
         
-        Fs_flat = Fs.reshape((Fs.shape[0]*Fs.shape[1]*Fs.shape[2], n_f), order='C')
+        Fs_flat = Fs.reshape((Fs.shape[0]*Fs.shape[1]*Fs.shape[2], n_f), order='C') #(fxfxd, n_f)
 
         # Einsum does the commented out code in a faster way
         """conv_outputs_mat = np.zeros((n_p, n_f, n))
@@ -72,32 +71,4 @@ class Convolver():
         return conv_outputs_mat
                    
     
-    def _construct_MX(self, X, Fs):
-        """
-        Create Mx for all images in X, see equations in documentation for more details TODO
-        Args:
-            X = ndarray (32, 32, 3, n) matrix with n images
-            Fs = ndarray (f, f, 3, nf) amtrix with nf square filters
-        Returns:
-            Mx: ndarray (n_p, f*f*3, n) matrix representation of X for convolution, 
-            n_p is number of patches
-        """
-        
-        stride_row=Fs.shape[0] # Stride = f for patchify
-        stride_col=Fs.shape[1]
-        d = Fs.shape[2]
-        n = int(X.shape[3])
-        patches_per_row = int(X.shape[0]/stride_row)
-        patches_per_col = int(X.shape[1]/stride_col)
-        n_p = patches_per_row*patches_per_col # number of patches
     
-        MX = np.zeros((n_p, stride_row*stride_col*d, n))
-        for i in range(n):
-            subregion = 0
-            for j in range(0,X.shape[0], stride_row):
-                for k in range(0,X.shape[1], stride_col):
-                    X_patch = X[j:j+stride_row,k:k+stride_col,:, i]
-                    
-                    MX[subregion, :, i] = X_patch.reshape((1, stride_row*stride_col*d), order='C')
-                    subregion += 1 
-        return MX

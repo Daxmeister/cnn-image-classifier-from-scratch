@@ -54,6 +54,10 @@ class Debug_data():
         return [W1, W2], [b1, b2]
     
     def load_fp_output(self):
-        return self.load_data['conv_flat'], self.load_data['X1'], self.load_data['P']
+        X1 = self.load_data['X1'].squeeze(0) # Correct wrong shape in debug X1 data values
+        return self.load_data['conv_flat'], X1, self.load_data['P']
+    
+    def load_backprop_data(self):
+        return self.load_data['Y'], self.load_data['grad_Fs_flat']
         
         

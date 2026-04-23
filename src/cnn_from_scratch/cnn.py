@@ -22,21 +22,58 @@ class CNN():
         self.y_tr = y_train"""
         if debug_network != None: # For testing
             self.network = debug_network
+        else:
+            pass
+            # Initiate network TODO
         
+        MX = _construct_MX(self, X_train, self.network['Fs'])
+        
+        _forward_pass(self, MX, self.network)
+        # TODO n_f = 
+        # TODO n_p = 
         # 1. Load parameters
         # 2. Forward pass
         # 3. Backward pass
         
-        
-    
-    def _forward_pass(self, X_tr, debug_network=None):
+    def _construct_MX(self, X, Fs):
         """
-        Forward pass of back-propagation algorithm
+        Create Mx for all images in X, see equations in documentation for more details TODO
+        Args:
+            X = ndarray (h, w, 3, n) a matrix with n images
+            Fs = ndarray (f, f, 3, nf) amtrix with nf square filters
+        Returns:
+            Mx: ndarray (n_p, f*f*3, n) matrix representation of X for convolution, 
+            n_p is number of patches
+        """
+        
+        stride_row=Fs.shape[0] # Stride = f for patchify
+        stride_col=Fs.shape[1]
+        d = Fs.shape[2]
+        n = int(X.shape[3])
+        patches_per_row = int(X.shape[0]/stride_row)
+        patches_per_col = int(X.shape[1]/stride_col)
+        n_p = patches_per_row*patches_per_col # number of patches
+    
+        MX = np.zeros((n_p, stride_row*stride_col*d, n))
+        for i in range(n):
+            subregion = 0
+            for j in range(0,X.shape[0], stride_row):
+                for k in range(0,X.shape[1], stride_col):
+                    X_patch = X[j:j+stride_row,k:k+stride_col,:, i]
+                    
+                    MX[subregion, :, i] = X_patch.reshape((1, stride_row*stride_col*d), order='C')
+                    subregion += 1 
+        return MX    
+    
+    def _forward_pass(self, MX, network):
+        """
+        Forward pass of back-propagation algorithm.
+        Assume that self.network has been initiated before (unless in debug)
         
         Args:
-            X_tr: ndarray (h, w, 3, n) training data (not MX representation)
+            Mx: ndarray (n_p, f*f*3, n) matrix representation of X for convolution
             
-            self.network dict with 
+            network dict with 
                 Fs: ndarray (f, f, 3, nf) Filters of layer 1
                 W: List of weights for layer 2 and 3 
                     [0]: W1 ndarray (nh, n_p * nf) nh= #nodes in layer 2 or 3?
@@ -55,21 +92,20 @@ class CNN():
         """
         
         
-        if debug_network != None: # For testing
-            self.network = debug_network
         
-        conv_out = self.convolver.conv_mat_mul(X_tr, self.network['Fs'])
+        
+        conv_out = self.convolver.conv_mat_mul(MX, network['Fs'])
         conv_out[conv_out<0] = 0 # ReLu
-        npnf = self.network['W'][0].shape[1]
-        n = X_tr.shape[3]
+        npnf = network['W'][0].shape[1]
+        n = MX.shape[2]
         h = np.fmax(conv_out.reshape((npnf, n), order='C'), 0)
        
         # Layer 2
-        x1 = self.network["W"][0]@ h + self.network['b'][0]
+        x1 = network["W"][0]@ h + network['b'][0]
         x1[x1<0] = 0 # ReLu
         
         # Layer 3
-        s = self.network["W"][1]@ x1 + self.network['b'][1]
+        s = network["W"][1]@ x1 + network['b'][1]
         p = self._soft_max(s)
    
         return h, x1, p
@@ -82,7 +118,75 @@ class CNN():
         return P
         
         
+    def _backward_pass(self, MX, Y, h, X1, p, network, n_f, n_p):
+        """
+        Performs the backward pass in network training
         
+        Args:
+            Mx: ndarray (n_p, f*f*3, nb) matrix representation of X for convolution
+            Y: Kxn
+            h      ndarray (n_p * nf, nb)  l1 output 
+            X1     ndarray (n_h, nb)       l2 output
+            p      ndarray (K, nb)        (l3) final class probabilities
+            network: dict with 
+                Fs: ndarray (f, f, 3, nf) Filters of layer 1
+                W: List of weights for layer 2 and 3 
+                    [0]: W1 ndarray (nh, n_p * nf) nh= #nodes in layer 2 or 3?
+                    [1]: W2 ndarray (K, nh)
+                b: List of biases for layer 2 and 3 
+                    [0]: b1 ndarray (nh, 1)
+                    [1]: b2 ndarray (K, 1)
+
+        lam: float TODO
+        
+        Returns:
+            grads: dict with
+                W: List with gradients of loss (TODO cost) relative to W
+                    [0]: W1 mxd
+                    [1]: W2 Kxm
+                b: List with gradients of loss (TODO cost) relative to b
+                    [0]: b1 mx1
+                    [1]: b2 Kx1
+                Fs: ndarray (f, f, 3, nf) gradients of loss (TODO cost) relative to Fs
+
+        """
+        grads = {}
+        nb = h.shape[1] # batch size
+        
+        # Grads of fully connected layers wrt loss (TODO cost)
+        grads["W"] = [None]*2
+        grads["b"] = [None]*2
+
+        # 2. Grads of z1/s or s TODO wrt lossfunction TODO layer 3
+        G = -(Y-p) # (K,nb) # dl/dp
+        
+        grads["W"][1] = 1/nb * G @ X1.T #+ 2*lam*network["W"][1] TODO cost  # (K,nh) = (K,nb)@(nb, nh)
+        grads["b"][1] = 1/nb * G @ np.ones(nb).reshape(nb,1) 
+       
+        # 3. Propagate gradient to X1, then do ReLu from X1 to z/s of layer 2
+        G = network["W"][1].T @ G # (nh, nb) = (nh, K) @ (K,nb) nh is num nodes in layer 2
+        G = G * np.sign(X1) # (nh,nb), (nh,nb) 
+        
+         # 4. Grads of lossfunction TODO layer 2
+        grads["W"][0] = 1/nb * G @ h.T #+ 2*lam*network["W"][0] (nh, np*nf) = (nh,nb) @ (nb, np*nf)
+        grads["b"][0] = 1/nb * G @ np.ones(nb).reshape(nb,1)  
+        
+        # 5. backprop to h node
+        G_batch = network["W"][0].T @ G # (np*nf, nb) = (np*nf, nh) @ (nh, nb)
+        G_batch = G_batch * np.sign(h) # (nh,nb), (nh,nb) ReLu in L1 (reverse order from forward pass, since we stored h but not conv_out)
+        
+        # Unflatten, GG is the grad of conv out in forward pass
+        GG = G_batch.reshape((n_p, n_f, nb), order='C') #(n_p, nf, nb) (64, 2, 5) for debug
+
+        # Einsum below does what the commented out code does
+        """grads_fs_flat = np.zeros((MX.shape[1], GG.shape[1])) # (f*f*3, nf)Mx.T(i) @ GG(i) is ( f*f*3, n_p) @ (n_p, nf)
+        for i in range(nb):
+            grads_fs_flat += MX[:, :, i].T @ GG[:, :, i]
+        grads["fs_flat"] = grads_fs_flat * 1/nb"""
+        
+        MXt = np.transpose(MX, (1, 0, 2))
+        grads["fs_flat"] = np.einsum('ijn, jln ->il', MXt, GG, optimize=True) * 1/nb
+        return grads
         
         
         
