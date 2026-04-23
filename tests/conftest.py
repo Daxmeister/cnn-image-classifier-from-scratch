@@ -1,7 +1,7 @@
 import pytest
-import debug_data
-import convolver
-import cnn
+import tests.utils.debug_data as debug_data
+import cnn_from_scratch.convolver as convolver
+import cnn_from_scratch.cnn as cnn
 
 @pytest.fixture
 def dbg():

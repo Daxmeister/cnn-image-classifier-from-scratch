@@ -1,9 +1,11 @@
 import numpy as np
+from pathlib import Path
 
 class Debug_data():
     """Class for handling debug data"""
     
-    def __init__(self, debug_file='debug_info.npz'):
+    def __init__(self):
+        debug_file = Path(__file__).parent / "debug_info.npz"
         self.load_data = np.load(debug_file)
     
     def load_convolv_gt(self):
