@@ -1,2 +1,5 @@
 local_material/
 __pycache__/
+*.egg-info/
+dist/
+build/

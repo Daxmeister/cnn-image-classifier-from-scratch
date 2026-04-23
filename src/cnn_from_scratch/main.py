@@ -1,14 +1,9 @@
 import numpy as np
-import debug_data
 import convolver
 import cnn
-
-debug_data = debug_data.Debug_data()
-convolver_object = convolver.Convolver()
-cnn_object = cnn.CNN(convolver_object)
+import data_management as dm
 
 
-debug_data.compare_conv_out_to_ground_truth(convolver_object)
-debug_data.compare_for_loop_w_matmul_convolver(convolver_object)
+#dm.load_all_data()
 
 
