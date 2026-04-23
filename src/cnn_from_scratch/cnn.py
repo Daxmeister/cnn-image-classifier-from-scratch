@@ -192,48 +192,43 @@ class CNN():
         
         
     
-    def _init_network(self,  nh, n_p, nf=2, f=3, channels=3, L=2, K=10, Fs_debug=None):
+    def _init_network(self,  nh, n_p, nf=2, f=3, channels=3, L=2, K=10):
         """
-        Initializes the network with parameters
-        TODO finish this later
+        Initializes the network with parameters. Uses He-initialization
         
         Args:
-            nh: int # nodes in layer 2 or 3? TODO
-            n_p: int # sub_patches in convolution layer
-            nf: int # filters applied in convolution layer
-            f: int height and width of filters
-            channels: # channels in images
-            L: int # fully connected layers
-            K: int # classes 
+            nh: int         # nodes in layer 2 or 3? TODO
+            n_p: int        # sub_patches in convolution layer
+            nf: int         # filters applied in convolution layer
+            f: int          height and width of filters
+            channels: int   # channels in images
+            L: int          # fully connected layers
+            K: int          # classes 
             
             self.rng: random generator
         
         Returns:
             init_net: dict with 
-                Fs: ndarray (f, f, 3, nf) Filters of layer 1
+                Fs: ndarray (f, f, channels, nf) Filters of layer 1
                 W: List of weights for layer 2 and 3 
                     [0]: W1 ndarray (nh, n_p * nf)
-                    [1]: W2 ndarray (10, nh)
+                    [1]: W2 ndarray (K, nh)
                 b: List of biases for layer 2 and 3 
                     [0]: b1 ndarray (nh, 1)
-                    [1]: b2 ndarray (10, 1)
+                    [1]: b2 ndarray (K, 1)
         """
         
         init_net = {}
         init_net['W'] = [None]*L
-        init_net['W'][0] = 1/np.sqrt(n_p*nf)*self.rng.standard_normal(size = (nh, n_p*nf))
-        init_net['W'][1] = 1/np.sqrt(nh)*self.rng.standard_normal(size = (K, nh))
+        init_net['W'][0] = np.sqrt(2/n_p*nf)*self.rng.standard_normal(size = (nh, n_p*nf)) # He initialization
+        init_net['W'][1] = np.sqrt(2/nh)*self.rng.standard_normal(size = (K, nh)) # He initialization
         
         init_net['b'] = [None]*L
         init_net['b'][0] = np.zeros((nh, 1))
         init_net['b'][1] = np.zeros((K, 1))
         
-        if Fs_debug != None:
-            init_net['Fs'] = Fs_debug
-        else:
-            # TODO
-            assert True == False
-            
+        init_net['Fs'] = np.sqrt(2/f)*self.rng.standard_normal(size = (f, f, channels, nf)) # He initialization TODO is n_in = f correct?
+   
         return init_net
 
         
