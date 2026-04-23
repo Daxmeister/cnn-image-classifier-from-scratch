@@ -37,7 +37,7 @@ def test_forward_pass():
     assert np.sum(np.abs(P-P_gt)) == 0
     
 def test_backward_pass():
-    """Tests if backward pass produces produces grads for Ws and bs of correct shape (values not tested)
+    """Tests if backward pass produces  grads for Ws and bs of correct shape (values not tested)
     and grads for fs_flat of correct shape and value for debug data
     
     Some shapes:
@@ -82,4 +82,31 @@ def test_backward_pass():
     assert grads['W'][1].shape == init_net['W'][1].shape
     assert grads['b'][0].shape == init_net['b'][0].shape
     assert grads['b'][1].shape == init_net['b'][1].shape
+
+def test_init_network():
+    """ Tests that the shapes of the init_network parameters are correct """
     
+    network_gt = {}
+    dbg = debug_data.Debug_data()
+    network_gt['W'], network_gt['b'] = dbg.load_W_b()
+    X_tr, network_gt['Fs'] = dbg.load_X_Fs()
+    
+    nh = network_gt['W'][0].shape[0]
+    nf = network_gt['Fs'].shape[3]
+    n_p = int( network_gt['W'][0].shape[1] / nf)
+    f = network_gt['Fs'].shape[0]
+    channels = network_gt['Fs'].shape[2]
+    L = len(network_gt['W'])
+    K =  network_gt['W'][1].shape[0]   
+    
+    # Initialize objects
+    convolver_obj = convolver.Convolver()
+    cnn_obj = cnn.CNN(convolver_obj)
+    
+    network = cnn_obj._init_network(nh, n_p, nf, f, channels, L, K)
+    
+    assert network['W'][0].shape == network_gt['W'][0].shape
+    assert network['W'][1].shape == network_gt['W'][1].shape
+    assert network['b'][0].shape == network_gt['b'][0].shape
+    assert network['b'][1].shape == network_gt['b'][1].shape
+    assert network['Fs'].shape == network_gt['Fs'].shape
