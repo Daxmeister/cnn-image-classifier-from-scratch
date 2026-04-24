@@ -1,11 +1,12 @@
 import numpy as np
-from pathlib import Path
+from cnn_from_scratch import paths
 
 class Debug_data():
     """Class for handling debug data"""
     
     def __init__(self):
-        debug_file = Path(__file__).parent / "debug_info.npz"
+        #debug_file = Path(__file__).resolve().parent / "debug_info.npz"
+        debug_file = paths.TEST_UTILS / "debug_info.npz"
         self.load_data = np.load(debug_file)
     
     def load_convolv_gt(self):
