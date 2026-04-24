@@ -1,9 +1,9 @@
 import numpy as np
-import convolver
-import cnn
-import data_management as dm
+from cnn_from_scratch import data_handling
+
+data_handling.get_MX_data(f=4, d=3, val_size=5000)
 
 
-#dm.load_all_data()
+
 
 
