@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-def compute_grads_with_torch(X, y, network):
+def compute_grads_with_torch(X, y, network, lam=0):
     """
     Computes grads numerically using pytorch. Used for checking analytical gradients.
     Note that it takes images X, not MX
@@ -68,7 +68,15 @@ def compute_grads_with_torch(X, y, network):
     P = apply_softmax(scores)
     
     # compute the loss
-    loss = torch.mean(-torch.log(P[y, torch.arange(n)]))
+    y_t = torch.tensor(y, dtype=torch.long) # Turn y into a torch recognized object
+    loss = torch.mean(-torch.log(P[y_t, torch.arange(n)]))
+    
+    # Compute cost
+    l2 = torch.sum(Fs*Fs)
+    for i in range(L):
+        l2 = l2 + torch.sum(W[i] * W[i])
+    
+    loss = loss + lam * l2
     
     # compute the backward pass relative to the loss and the named parameters 
     loss.backward()
