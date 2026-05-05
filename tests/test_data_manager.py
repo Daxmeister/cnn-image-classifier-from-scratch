@@ -19,7 +19,7 @@ def test_pre_processing():
 
     
 def test_construct_MX():
-    
+    """ Tests correct shape of MX file for subset of trainingdata"""
     n_validation = 1000
     X_tr, Y_tr, y_tr, X_val, Y_val, y_val, X_te, Y_te, y_te  = data_handling.load_some_data(n_validation)
     print(X_tr.shape) # (3072, 9000)

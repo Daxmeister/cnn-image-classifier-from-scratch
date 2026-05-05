@@ -1,7 +1,9 @@
 import numpy as np
+import cnn_from_scratch.data_handling as data_handling 
+import tests.utils.torch_grads as torch_grads
 
 
-def test_forward_pass(dbg, convolver_obj, cnn_obj, epsilon):
+def test_forward_pass(dbg, cnn_obj, epsilon):
     """Tests if forward pass produces correct shape and values of output for debug data"""
     # Load debug data
     init_net = {}
@@ -30,7 +32,7 @@ def test_forward_pass(dbg, convolver_obj, cnn_obj, epsilon):
     assert np.sum(np.abs(X1-X1_gt)) == 0
     assert np.sum(np.abs(P-P_gt)) == 0
     
-def test_backward_pass(dbg, convolver_obj, cnn_obj, epsilon):
+def test_backward_pass(dbg, cnn_obj, epsilon):
     """Tests if backward pass produces  grads for Ws and bs of correct shape (values not tested)
     and grads for fs_flat of correct shape and value for debug data
     
@@ -75,7 +77,7 @@ def test_backward_pass(dbg, convolver_obj, cnn_obj, epsilon):
     assert grads['b'][0].shape == init_net['b'][0].shape
     assert grads['b'][1].shape == init_net['b'][1].shape
 
-def test_init_network(dbg, convolver_obj, cnn_obj, epsilon):
+def test_init_network(dbg, cnn_obj, epsilon):
     """ Tests that the shapes of the init_network parameters are correct """
     
     network_gt = {}
@@ -85,7 +87,6 @@ def test_init_network(dbg, convolver_obj, cnn_obj, epsilon):
     
     nh = network_gt['W'][0].shape[0]
     nf = network_gt['Fs'].shape[3]
-    n_p = int( network_gt['W'][0].shape[1] / nf)
     f = network_gt['Fs'].shape[0]
     channels = network_gt['Fs'].shape[2]
     L = len(network_gt['W'])
@@ -93,10 +94,49 @@ def test_init_network(dbg, convolver_obj, cnn_obj, epsilon):
 
 
     
-    network = cnn_obj._init_network(nh, n_p, nf, f, channels, L, K)
+    network = cnn_obj._init_network(nh, nf, f, channels, L, K)
     
     assert network['W'][0].shape == network_gt['W'][0].shape
     assert network['W'][1].shape == network_gt['W'][1].shape
     assert network['b'][0].shape == network_gt['b'][0].shape
     assert network['b'][1].shape == network_gt['b'][1].shape
     assert network['Fs'].shape == network_gt['Fs'].shape
+
+def test_compare_analytical_and_numerical_grads(dbg, cnn_obj, epsilon):
+    nh = 5
+    f=4
+    nf=2
+    network = cnn_obj._init_network(nh, nf=nf, f=f, channels=3, L=2, K=10)
+    
+    data  = data_handling.get_MX_data(f=f, d=3, val_size=50, total_samples=500, small_data=True)
+    h, X1, p = cnn_obj._forward_pass(data['MX_tr'], network)
+    analytical_grads = cnn_obj._backward_pass(data['MX_tr'], data['Y_tr'], h, X1, p, network, n_f=nf, n_p=int((32/f)**2))
+    numerical_grads = torch_grads.compute_grads_with_torch(data['X_ims'], data['y_tr'], network)
+    
+    for i in range(2):
+        num = np.linalg.norm((analytical_grads["W"][i]-numerical_grads["W"][i]))
+        added_norms = np.linalg.norm(analytical_grads["W"][i]) + np.linalg.norm(numerical_grads["W"][i])
+        eps = 10**(-6)
+        den = max(eps, added_norms)
+        assert num/den <= eps
+    
+    for i in range(2):
+        num = np.linalg.norm((analytical_grads["b"][i]-numerical_grads["b"][i]))
+        added_norms = np.linalg.norm(analytical_grads["b"][i]) + np.linalg.norm(numerical_grads["b"][i])
+        eps = 10**(-6)
+        den = max(eps, added_norms)
+        assert num/den <= eps
+
+    # Flatten num gradients to enable comparison
+    Fs_analytical_flat = analytical_grads["fs_flat"]
+    Fs_num_flat = numerical_grads["Fs"].reshape((Fs_analytical_flat.shape), order='C') 
+    
+    # Compare 
+    added_norms = np.linalg.norm(Fs_analytical_flat) + np.linalg.norm(Fs_num_flat)
+    eps = 10**(-6)
+    den = max(eps, added_norms)
+    assert num/den <= eps
+
+    
+    
+    
