@@ -10,3 +10,5 @@ RAW_DATA = DATA / "raw"
 PROCESSED_DATA = DATA / "processed"
 
 TEST_UTILS = ROOT / "tests" / "utils"
+
+PLOTS = ROOT / "plots"
