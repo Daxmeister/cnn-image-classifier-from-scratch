@@ -127,7 +127,7 @@ class CNN():
         return P
         
         
-    def _backward_pass(self, MX, Y, h, X1, p, network, n_f, n_p, use_bias=True):
+    def _backward_pass(self, MX, Y, h, X1, p, network, n_f, n_p, use_bias=True, lam=0):
         """
         Performs the backward pass in network training
         
@@ -146,6 +146,7 @@ class CNN():
                 b: List of biases for layer 2 and 3 
                     [0]: b1 ndarray (nh, 1)
                     [1]: b2 ndarray (K, 1)
+            use_bias: Boolean to suggest if bias for convolutionlayer should be used (Fs_b)
 
         lam: float TODO
         
@@ -170,7 +171,7 @@ class CNN():
         # 2. Grads of z1/s or s TODO wrt lossfunction TODO layer 3
         G = -(Y-p) # (K,nb) # dl/dp
         
-        grads["W"][1] = 1/nb * G @ X1.T #+ 2*lam*network["W"][1] TODO cost  # (K,nh) = (K,nb)@(nb, nh)
+        grads["W"][1] = 1/nb * G @ X1.T + 2*lam*network["W"][1] # (K,nh) = (K,nb)@(nb, nh)
         grads["b"][1] = 1/nb * G @ np.ones(nb).reshape(nb,1) 
        
         # 3. Propagate gradient to X1, then do ReLu from X1 to z/s of layer 2
@@ -178,7 +179,7 @@ class CNN():
         G = G * np.sign(X1) # (nh,nb), (nh,nb) 
         
          # 4. Grads of lossfunction TODO layer 2
-        grads["W"][0] = 1/nb * G @ h.T #+ 2*lam*network["W"][0] (nh, np*nf) = (nh,nb) @ (nb, np*nf)
+        grads["W"][0] = 1/nb * G @ h.T + 2*lam*network["W"][0] # (nh, np*nf) = (nh,nb) @ (nb, np*nf)
         grads["b"][0] = 1/nb * G @ np.ones(nb).reshape(nb,1)  
         
         # 5. backprop to h node
@@ -209,6 +210,9 @@ class CNN():
         
         MXt = np.transpose(MX, (1, 0, 2))
         grads["fs_flat"] = np.einsum('ijn, jln ->il', MXt, GG, optimize=True) * 1/nb
+        
+        Fs_flat = network["Fs"].reshape(MX.shape[1], n_f, order="C")
+        grads["fs_flat"] += 2*lam*Fs_flat
         return grads
         
         

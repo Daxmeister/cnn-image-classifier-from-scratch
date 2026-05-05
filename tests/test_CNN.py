@@ -146,6 +146,51 @@ def test_compare_analytical_and_numerical_grads(dbg, cnn_obj, epsilon):
     den = max(eps, added_norms)
     assert num/den <= eps
 
+
+def test_compare_analytical_and_numerical_grads_w_cost(dbg, cnn_obj, epsilon):
+    nh = 5
+    f=4
+    nf=2
+    lam = 0.1
+    network = cnn_obj._init_network(nh, nf=nf, f=f, channels=3, L=2, K=10)
+    
+    data  = data_handling.get_MX_data(f=f, d=3, val_size=50, total_samples=500, small_data=True)
+    h, X1, p = cnn_obj._forward_pass(data['MX_tr'], network)
+    analytical_grads = cnn_obj._backward_pass(data['MX_tr'], data['Y_tr'], h, X1, p, network, n_f=nf, n_p=int((32/f)**2), lam=lam)
+    numerical_grads = torch_grads.compute_grads_with_torch(data['X_ims'], data['y_tr'], network, lam=lam)
+    
+    # Compare weight gradients
+    for i in range(2):
+        num = np.linalg.norm((analytical_grads["W"][i]-numerical_grads["W"][i]))
+        added_norms = np.linalg.norm(analytical_grads["W"][i]) + np.linalg.norm(numerical_grads["W"][i])
+        eps = 10**(-6)
+        den = max(eps, added_norms)
+        assert num/den <= eps
+    
+    # Compare bias gradients
+    for i in range(2):
+        num = np.linalg.norm((analytical_grads["b"][i]-numerical_grads["b"][i]))
+        added_norms = np.linalg.norm(analytical_grads["b"][i]) + np.linalg.norm(numerical_grads["b"][i])
+        eps = 10**(-6)
+        den = max(eps, added_norms)
+        assert num/den <= eps
+
+    # Compare filter gradianets
+    # Flatten num gradients to enable comparison 
+    Fs_analytical_flat = analytical_grads["fs_flat"]
+    Fs_num_flat = numerical_grads["Fs"].reshape((Fs_analytical_flat.shape), order='C') 
+
+    added_norms = np.linalg.norm(Fs_analytical_flat) + np.linalg.norm(Fs_num_flat)
+    eps = 10**(-6)
+    den = max(eps, added_norms)
+    assert num/den <= eps
+    
+    # Compare convolution layer bias gradients
+    num = np.linalg.norm((analytical_grads["Fs_b"]-numerical_grads["Fs_b"]))
+    added_norms = np.linalg.norm(analytical_grads["Fs_b"]) + np.linalg.norm(numerical_grads["Fs_b"])
+    eps = 10**(-6)
+    den = max(eps, added_norms)
+    assert num/den <= eps
     
 
     
