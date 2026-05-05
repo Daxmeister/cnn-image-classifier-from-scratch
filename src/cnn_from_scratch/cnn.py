@@ -1,11 +1,14 @@
 import numpy as np
+from cnn_from_scratch import helper_func
+
 
 class CNN():
     
-    def __init__(self, convolver):
+    def __init__(self, convolver, plotter = None):
         self.network = {}
         self.convolver = convolver
         self.rng = np.random.default_rng(42)
+        self.plotter = plotter
     
     def train(self, X_train, Y_train, y_train, debug_network=None):
         """
@@ -209,17 +212,19 @@ class CNN():
         grads["fs_flat"] = grads_fs_flat * 1/nb"""
         
         MXt = np.transpose(MX, (1, 0, 2))
-        grads["fs_flat"] = np.einsum('ijn, jln ->il', MXt, GG, optimize=True) * 1/nb
+        flat_grads = np.einsum('ijn, jln ->il', MXt, GG, optimize=True) * 1/nb
         
         Fs_flat = network["Fs"].reshape(MX.shape[1], n_f, order="C")
-        grads["fs_flat"] += 2*lam*Fs_flat
+        flat_grads += 2*lam*Fs_flat
+        grads["fs_flat"] = flat_grads # used for some tests
+        grads["Fs"] = flat_grads.reshape(network["Fs"].shape, order="C")
         return grads
         
         
         
         
     
-    def _init_network(self,  nh, nf=2, f=3, channels=3, L=2, K=10):
+    def init_network(self,  nh, nf=2, f=2, channels=3, L=2, K=10):
         """
         Initializes the network with parameters. Uses He-initialization
         
@@ -245,7 +250,7 @@ class CNN():
                     [0]: b1 ndarray (nh, 1)
                     [1]: b2 ndarray (K, 1)
         """
-        
+   
         n_p = int((32/f)**2) # Assumes 32x32 images and fxf filters
         
         init_net = {}
@@ -260,8 +265,111 @@ class CNN():
         init_net['Fs'] = np.sqrt(2/f)*self.rng.standard_normal(size = (f, f, channels, nf)) # He initialization TODO is n_in = f correct?
         init_net['Fs_b'] = np.zeros((nf, 1))
         
-        return init_net
+        self.network = init_net
+        return init_net # For testing
 
+    def training_cyclical(self, MX_train, Ytrain, y_train, MX_val, y_val,lam=0):
+        """
+        Uses mini-batch gradient descent with cyclical  learning rates.
+        Updates self.network and stores intermediary performance on train and val in self.plotter
         
+        Requires plotter != None
+        Requires network ti have been initialized
         
+        Args:
+            MX_train: ndarray (n_p, f*f*3, n1) matrix representation of X for convolution
+            MX_val: ndarray (n_p, f*f*3, n2) matrix representation of X for convolution
+            init_net: dict with 
+                Fs: ndarray (f, f, channels, nf) Filters of convolution layer
+                Fs_b: ndarray (nf,1) Convolution layer bias
+                W: List of weights for layer 2 and 3 
+                    [0]: W1 ndarray (nh, n_p * nf)
+                    [1]: W2 ndarray (K, nh)
+                b: List of biases for layer 2 and 3 
+                    [0]: b1 ndarray (nh, 1)
+                    [1]: b2 ndarray (K, 1)
         
+        """
+        assert self.plotter != None
+        GD_params = self.GD_params
+        # Deep copy of network
+        init_net = self.network
+        
+        trained_net = {}
+        trained_net["W"] = init_net["W"].copy()
+        trained_net["b"] = init_net["b"].copy()
+        trained_net["Fs"] = init_net["Fs"].copy()
+        trained_net["Fs_b"] = init_net["Fs_b"].copy()
+        
+        n_f = init_net["Fs_b"].shape[0]
+        n_p = MX_train.shape[0]
+
+        # For shuffling
+        n = MX_train.shape[2]
+        n_epochs_per_n_s = int(GD_params["n_s"]*GD_params["n_batch"]/n)
+
+        # store initial performance on training and val
+        self._save_performance(MX_train, y_train,MX_val, y_val, trained_net, lam, update_step=0)
+        
+        # Number of update steps
+        for l in range(GD_params["half_cycles"]):
+            # Every step
+            is_rising = (l%2)==0
+
+            for epoch in range(n_epochs_per_n_s):
+                
+                perm = np.random.permutation(n)
+                X_train_shuf = MX_train[:,:, perm]
+                Y_train_shuf = Ytrain[:, perm]
+                batches_per_epoch = round(n/GD_params["n_batch"])
+                
+                for j in range(batches_per_epoch):
+                    t = epoch*batches_per_epoch + j # Checked to be correct climbing from 0 to n_s
+                    eta = helper_func.update_eta(GD_params, t, is_rising) # Checked to be correct
+                    
+                    j_start = j*GD_params["n_batch"]
+                    j_end = (j+1)*GD_params["n_batch"]
+                    #inds = j_start:j_end # This is not python code....
+                    Xbatch = X_train_shuf[:,:, j_start:j_end]
+                    Ybatch = Y_train_shuf[:, j_start:j_end]
+                    
+                    h, x1, p = self._forward_pass(Xbatch, trained_net)
+                    
+                    grads = self._backward_pass(Xbatch, Ybatch, h, x1, p, trained_net, n_f, n_p, use_bias=True, lam=lam)
+                    
+                    # Update W and b
+                    for k in range(len(trained_net["W"])):
+                        trained_net["W"][k] = trained_net["W"][k] - eta * grads["W"][k]
+                        trained_net["b"][k] = trained_net["b"][k] - eta * grads["b"][k]
+                    trained_net["Fs"] = trained_net["Fs"] - eta * grads["Fs"]
+                    trained_net["Fs_b"] = trained_net["Fs_b"] - eta * grads["Fs_b"]
+                              
+                # After each epoch, store performance on training and val
+                update_step = l*n_epochs_per_n_s*batches_per_epoch + epoch*batches_per_epoch + j
+                self._save_performance(MX_train, y_train,MX_val, y_val, trained_net, lam, update_step) 
+        
+        self.network = trained_net
+
+    
+    def set_learning_parameters(self, n_batch=100, eta_min = 1e-5, eta_max = 1e-1, n_s=500, half_cycles=2 ):
+        GD_params = {}
+        GD_params["n_batch"] = n_batch
+        GD_params["eta_min"] = eta_min 
+        GD_params["eta_max"] = eta_max
+        GD_params["n_s"]=n_s # n_s=k * n/n_batch for  k=[2,8]
+        GD_params["half_cycles"]=half_cycles # Makes sure it is an even number so we end on lowest
+
+        self.GD_params = GD_params
+    
+    def _save_performance(self, MX_train, y_train,MX_val, y_val, trained_net, lam, update_step):
+        h, x1, p = self._forward_pass(MX_train, trained_net)
+        loss_train = helper_func.compute_loss(p, y_train)
+        cost_train = loss_train + lam* (np.sum((trained_net["W"][0]**2))+np.sum((trained_net["W"][1]**2)) + np.sum((trained_net["Fs"]**2))) 
+        accuracy_train = helper_func.compute_accuracy(p, y_train)
+
+        h, x1, p = self._forward_pass(MX_val, trained_net, use_bias=True)
+        loss_val = helper_func.compute_loss(p, y_val)
+        cost_val = loss_val + lam* (np.sum((trained_net["W"][0]**2))+np.sum((trained_net["W"][1]**2)) + np.sum((trained_net["Fs"]**2)))    
+        accuracy_val = helper_func.compute_accuracy(p, y_val)
+        
+        self.plotter.add_update_step(loss_train,  cost_train, accuracy_train, loss_val, cost_val, accuracy_val, update_step)
