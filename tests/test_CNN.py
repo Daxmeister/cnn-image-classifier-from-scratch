@@ -19,7 +19,7 @@ def test_forward_pass(dbg, cnn_obj, epsilon):
     MX = cnn_obj._construct_MX(X_tr, init_net['Fs'])
     
     # Do forward pass
-    h, X1, P = cnn_obj._forward_pass(MX, init_net)
+    h, X1, P = cnn_obj._forward_pass(MX, init_net, use_bias=False)
     h_gt, X1_gt, P_gt = dbg.load_fp_output()
     
     # Test correct shape
@@ -113,6 +113,7 @@ def test_compare_analytical_and_numerical_grads(dbg, cnn_obj, epsilon):
     analytical_grads = cnn_obj._backward_pass(data['MX_tr'], data['Y_tr'], h, X1, p, network, n_f=nf, n_p=int((32/f)**2))
     numerical_grads = torch_grads.compute_grads_with_torch(data['X_ims'], data['y_tr'], network)
     
+    # Compare weight gradients
     for i in range(2):
         num = np.linalg.norm((analytical_grads["W"][i]-numerical_grads["W"][i]))
         added_norms = np.linalg.norm(analytical_grads["W"][i]) + np.linalg.norm(numerical_grads["W"][i])
@@ -120,6 +121,7 @@ def test_compare_analytical_and_numerical_grads(dbg, cnn_obj, epsilon):
         den = max(eps, added_norms)
         assert num/den <= eps
     
+    # Compare bias gradients
     for i in range(2):
         num = np.linalg.norm((analytical_grads["b"][i]-numerical_grads["b"][i]))
         added_norms = np.linalg.norm(analytical_grads["b"][i]) + np.linalg.norm(numerical_grads["b"][i])
@@ -127,15 +129,24 @@ def test_compare_analytical_and_numerical_grads(dbg, cnn_obj, epsilon):
         den = max(eps, added_norms)
         assert num/den <= eps
 
-    # Flatten num gradients to enable comparison
+    # Compare filter gradianets
+    # Flatten num gradients to enable comparison 
     Fs_analytical_flat = analytical_grads["fs_flat"]
     Fs_num_flat = numerical_grads["Fs"].reshape((Fs_analytical_flat.shape), order='C') 
-    
-    # Compare 
+
     added_norms = np.linalg.norm(Fs_analytical_flat) + np.linalg.norm(Fs_num_flat)
     eps = 10**(-6)
     den = max(eps, added_norms)
     assert num/den <= eps
+    
+    # Compare convolution layer bias gradients
+    num = np.linalg.norm((analytical_grads["Fs_b"]-numerical_grads["Fs_b"]))
+    added_norms = np.linalg.norm(analytical_grads["Fs_b"]) + np.linalg.norm(numerical_grads["Fs_b"])
+    eps = 10**(-6)
+    den = max(eps, added_norms)
+    assert num/den <= eps
+
+    
 
     
     
