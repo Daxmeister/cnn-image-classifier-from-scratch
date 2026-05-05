@@ -45,6 +45,13 @@ class CNN():
             Mx: ndarray (n_p, f*f*3, n) matrix representation of X for convolution, 
             n_p is number of patches
         """
+        f = Fs.shape[0]
+        if X.shape[0] % f != 0 or X.shape[1] % f != 0:
+            raise ValueError(
+                f"Image size ({X.shape[0]}x{X.shape[1]}) "
+                f"must be divisible by filter size f={f}"
+            )
+        
         
         stride_row=Fs.shape[0] # Stride = f for patchify
         stride_col=Fs.shape[1]
@@ -192,7 +199,7 @@ class CNN():
         
         
     
-    def _init_network(self,  nh, n_p, nf=2, f=3, channels=3, L=2, K=10):
+    def _init_network(self,  nh, nf=2, f=3, channels=3, L=2, K=10):
         """
         Initializes the network with parameters. Uses He-initialization
         
@@ -217,6 +224,8 @@ class CNN():
                     [0]: b1 ndarray (nh, 1)
                     [1]: b2 ndarray (K, 1)
         """
+        
+        n_p = int((32/f)**2) # Assumes 32x32 images and fxf filters
         
         init_net = {}
         init_net['W'] = [None]*L

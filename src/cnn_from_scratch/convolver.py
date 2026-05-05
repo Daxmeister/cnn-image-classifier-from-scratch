@@ -49,8 +49,8 @@ class Convolver():
         Assumes that height == width of image
         
         Args:
-            X = ndarray (h, w, 3, n)
-            Fs = ndarray (f, f, 3, nf)
+            Mx: ndarray (n_p, f*f*d, n) matrix representation of X for convolution
+            Fs = ndarray (f, f, d, nf)
         Returns:
             conv_outputs = ndarray (h/f, w/f, nf, n)
         """
