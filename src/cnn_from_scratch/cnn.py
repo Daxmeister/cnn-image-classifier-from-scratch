@@ -72,22 +72,22 @@ class CNN():
                     subregion += 1 
         return MX    
     
-    def _forward_pass(self, MX, network):
+    def _forward_pass(self, MX, network, use_bias=True):
         """
         Forward pass of back-propagation algorithm.
-        Assume that self.network has been initiated before (unless in debug)
         
         Args:
             Mx: ndarray (n_p, f*f*3, n) matrix representation of X for convolution
             
             network dict with 
                 Fs: ndarray (f, f, 3, nf) Filters of layer 1
+                Fs_b: ndarray (nf,1) Convolution layer bias
                 W: List of weights for layer 2 and 3 
-                    [0]: W1 ndarray (nh, n_p * nf) nh= #nodes in layer 2 or 3?
-                    [1]: W2 ndarray (10, nh)
+                    [0]: W1 ndarray (nh, n_p * nf) nh= #nodes in layer 2 
+                    [1]: W2 ndarray (K, nh)
                 b: List of biases for layer 2 and 3 
                     [0]: b1 ndarray (nh, 1)
-                    [1]: b2 ndarray (10, 1)
+                    [1]: b2 ndarray (K, 1)
                 
             self.convolver object that represents convolution layer
         
@@ -102,6 +102,8 @@ class CNN():
         
         
         conv_out = self.convolver.conv_mat_mul(MX, network['Fs'])
+        if use_bias:
+            conv_out += network['Fs_b'].reshape(1, network['Fs_b'].shape[0], 1) # Apply bias
         conv_out[conv_out<0] = 0 # ReLu
         npnf = network['W'][0].shape[1]
         n = MX.shape[2]
@@ -125,7 +127,7 @@ class CNN():
         return P
         
         
-    def _backward_pass(self, MX, Y, h, X1, p, network, n_f, n_p):
+    def _backward_pass(self, MX, Y, h, X1, p, network, n_f, n_p, use_bias=True):
         """
         Performs the backward pass in network training
         
@@ -137,6 +139,7 @@ class CNN():
             p      ndarray (K, nb)        (l3) final class probabilities
             network: dict with 
                 Fs: ndarray (f, f, 3, nf) Filters of layer 1
+                Fs_b: ndarray (nf,1) Convolution layer bias
                 W: List of weights for layer 2 and 3 
                     [0]: W1 ndarray (nh, n_p * nf) nh= #nodes in layer 2 or 3?
                     [1]: W2 ndarray (K, nh)
@@ -148,14 +151,14 @@ class CNN():
         
         Returns:
             grads: dict with
+                Fs: ndarray (f, f, 3, nf) gradients of loss (TODO cost) relative to Fs
+                Fs_b: ndarray (nf,1) gradients of loss (TODO cost) relative to conv layer bias
                 W: List with gradients of loss (TODO cost) relative to W
                     [0]: W1 mxd
                     [1]: W2 Kxm
                 b: List with gradients of loss (TODO cost) relative to b
                     [0]: b1 mx1
                     [1]: b2 Kx1
-                Fs: ndarray (f, f, 3, nf) gradients of loss (TODO cost) relative to Fs
-
         """
         grads = {}
         nb = h.shape[1] # batch size
@@ -180,10 +183,23 @@ class CNN():
         
         # 5. backprop to h node
         G_batch = network["W"][0].T @ G # (np*nf, nb) = (np*nf, nh) @ (nh, nb)
-        G_batch = G_batch * np.sign(h) # (nh,nb), (nh,nb) ReLu in L1 (reverse order from forward pass, since we stored h but not conv_out)
+        
+        # ReLu in L1 (reverse order from forward pass, since we stored h but not conv_out)
+        G_batch = G_batch * np.sign(h) # (nh,nb), (nh,nb) 
         
         # Unflatten, GG is the grad of conv out in forward pass
         GG = G_batch.reshape((n_p, n_f, nb), order='C') #(n_p, nf, nb) (64, 2, 5) for debug
+        
+        if use_bias:
+            # Get grads for convolution layer bias
+            GG_filters = np.transpose(GG, (1, 0, 2))
+            GG_filters = GG_filters.reshape(n_f, n_p * nb)
+
+            grads["Fs_b"] = (
+                1 / nb
+                * GG_filters
+                @ np.ones(n_p * nb).reshape(n_p * nb, 1)
+            )
 
         # Einsum below does what the commented out code does
         """grads_fs_flat = np.zeros((MX.shape[1], GG.shape[1])) # (f*f*3, nf)Mx.T(i) @ GG(i) is ( f*f*3, n_p) @ (n_p, nf)
@@ -216,7 +232,8 @@ class CNN():
         
         Returns:
             init_net: dict with 
-                Fs: ndarray (f, f, channels, nf) Filters of layer 1
+                Fs: ndarray (f, f, channels, nf) Filters of convolution layer
+                Fs_b: ndarray (nf,1) Convolution layer bias
                 W: List of weights for layer 2 and 3 
                     [0]: W1 ndarray (nh, n_p * nf)
                     [1]: W2 ndarray (K, nh)
@@ -237,7 +254,8 @@ class CNN():
         init_net['b'][1] = np.zeros((K, 1))
         
         init_net['Fs'] = np.sqrt(2/f)*self.rng.standard_normal(size = (f, f, channels, nf)) # He initialization TODO is n_in = f correct?
-   
+        init_net['Fs_b'] = np.zeros((nf, 1))
+        
         return init_net
 
         

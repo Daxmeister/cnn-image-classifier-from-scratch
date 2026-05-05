@@ -32,13 +32,15 @@ def compute_grads_with_torch(X, y, network):
     
     # Filter gradients TODO
     Fs = torch.tensor(network['Fs'], requires_grad=True)        
-
+    Fs_b = torch.tensor(network['Fs_b'], requires_grad=True) 
+    
     ## give informative names to these torch classes        
     apply_relu = torch.nn.ReLU()
     apply_softmax = torch.nn.Softmax(dim=0)
 
     #### Implement forward pass
     conv_out = torch_conv_for_loop(Xt, Fs)
+    conv_out = conv_out + Fs_b.reshape(1, network['Fs_b'].shape[0], 1)
     conv_out= apply_relu(conv_out)
     
     #npnf = network['W'][0].shape[1]
@@ -66,7 +68,7 @@ def compute_grads_with_torch(X, y, network):
     P = apply_softmax(scores)
     
     # compute the loss
-    loss = torch.mean(-torch.log(P[y, np.arange(n)]))
+    loss = torch.mean(-torch.log(P[y, torch.arange(n)]))
     
     # compute the backward pass relative to the loss and the named parameters 
     loss.backward()
@@ -79,6 +81,7 @@ def compute_grads_with_torch(X, y, network):
         grads['W'][i] = W[i].grad.numpy()
         grads['b'][i] = b[i].grad.numpy()
     grads['Fs'] = Fs.grad.numpy()
+    grads['Fs_b'] = Fs_b.grad.numpy()
 
     return grads
 
