@@ -254,16 +254,17 @@ class CNN():
         n_p = int((32/f)**2) # Assumes 32x32 images and fxf filters
         
         init_net = {}
+        npnf = n_p*nf
         init_net['W'] = [None]*L
-        init_net['W'][0] = np.sqrt(2/n_p*nf)*self.rng.standard_normal(size = (nh, n_p*nf)) # He initialization
+        init_net['W'][0] = np.sqrt(2/npnf)*self.rng.standard_normal(size = (nh, npnf)) # He initialization
         init_net['W'][1] = np.sqrt(2/nh)*self.rng.standard_normal(size = (K, nh)) # He initialization
         
         init_net['b'] = [None]*L
         init_net['b'][0] = np.zeros((nh, 1))
         init_net['b'][1] = np.zeros((K, 1))
         
-        init_net['Fs'] = np.sqrt(2/f)*self.rng.standard_normal(size = (f, f, channels, nf)) # He initialization TODO is n_in = f correct?
-        init_net['Fs_b'] = np.zeros((nf, 1))
+        ffc = f*f*channels
+        init_net['Fs'] = np.sqrt(2/ffc)*self.rng.standard_normal(size = (f, f, channels, nf)) # He initialization
         
         self.network = init_net
         return init_net # For testing
@@ -272,9 +273,9 @@ class CNN():
         """
         Uses mini-batch gradient descent with cyclical  learning rates.
         Updates self.network and stores intermediary performance on train and val in self.plotter
+        if cnn object was given a plotter upon initialization.
         
-        Requires plotter != None
-        Requires network ti have been initialized
+        Requires network to have been initialized
         
         Args:
             MX_train: ndarray (n_p, f*f*3, n1) matrix representation of X for convolution
@@ -308,8 +309,9 @@ class CNN():
         n = MX_train.shape[2]
         n_epochs_per_n_s = int(GD_params["n_s"]*GD_params["n_batch"]/n)
 
-        # store initial performance on training and val
-        self._save_performance(MX_train, y_train,MX_val, y_val, trained_net, lam, update_step=0)
+        if self.plotter != None:
+            # store initial performance on training and val
+            self._save_performance(MX_train, y_train,MX_val, y_val, trained_net, lam, update_step=0)
         
         # Number of update steps
         for l in range(GD_params["half_cycles"]):
@@ -343,10 +345,11 @@ class CNN():
                         trained_net["b"][k] = trained_net["b"][k] - eta * grads["b"][k]
                     trained_net["Fs"] = trained_net["Fs"] - eta * grads["Fs"]
                     trained_net["Fs_b"] = trained_net["Fs_b"] - eta * grads["Fs_b"]
-                              
-                # After each epoch, store performance on training and val
-                update_step = l*n_epochs_per_n_s*batches_per_epoch + epoch*batches_per_epoch + j
-                self._save_performance(MX_train, y_train,MX_val, y_val, trained_net, lam, update_step) 
+                
+                if self.plotter != None:
+                    # After each epoch, store performance on training and val
+                    update_step = l*n_epochs_per_n_s*batches_per_epoch + epoch*batches_per_epoch + j
+                    self._save_performance(MX_train, y_train,MX_val, y_val, trained_net, lam, update_step) 
         
         self.network = trained_net
 
@@ -373,3 +376,8 @@ class CNN():
         accuracy_val = helper_func.compute_accuracy(p, y_val)
         
         self.plotter.add_update_step(loss_train,  cost_train, accuracy_train, loss_val, cost_val, accuracy_val, update_step)
+    
+    def evaluate_accuracy(self, MX_test,  y_train):
+        h, x1, p = self._forward_pass(MX_test, self.network)
+        return helper_func.compute_accuracy(p, y_train)
+                                    
