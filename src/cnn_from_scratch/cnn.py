@@ -5,7 +5,7 @@ from cnn_from_scratch import helper_func
 class CNN():
     
     def __init__(self, convolver, plotter = None):
-        self.network = {}
+        self.network = None
         self.convolver = convolver
         self.rng = np.random.default_rng(42)
         self.plotter = plotter
@@ -264,12 +264,13 @@ class CNN():
         init_net['b'][1] = np.zeros((K, 1))
         
         ffc = f*f*channels
-        init_net['Fs'] = np.sqrt(2/ffc)*self.rng.standard_normal(size = (f, f, channels, nf)) # He initialization
+        init_net['Fs'] = np.sqrt(2/ffc)*self.rng.standard_normal(size = (f, f, channels, nf)) # He initialization TODO is n_in = f correct?
+        init_net['Fs_b'] = np.zeros((nf, 1))
         
         self.network = init_net
         return init_net # For testing
 
-    def training_cyclical(self, MX_train, Ytrain, y_train, MX_val, y_val,lam=0):
+    def training_cyclical_old(self, MX_train, Ytrain, y_train, MX_val, y_val,lam=0):
         """
         Uses mini-batch gradient descent with cyclical  learning rates.
         Updates self.network and stores intermediary performance on train and val in self.plotter
@@ -307,7 +308,8 @@ class CNN():
 
         # For shuffling
         n = MX_train.shape[2]
-        n_epochs_per_n_s = int(GD_params["n_s"]*GD_params["n_batch"]/n)
+        n_epochs_per_n_s = int(GD_params["n_s"]*GD_params["n_batch"]/n) # k
+        print("n_epochs_per_n_s", n_epochs_per_n_s)
 
         if self.plotter != None:
             # store initial performance on training and val
@@ -352,15 +354,120 @@ class CNN():
                     self._save_performance(MX_train, y_train,MX_val, y_val, trained_net, lam, update_step) 
         
         self.network = trained_net
+    
+    def training_cyclical(self, MX_train, Ytrain, y_train=None, MX_val=None, y_val=None,lam=0):
+        """
+        Uses mini-batch gradient descent with cyclical  learning rates.
+        Updates self.network and stores intermediary performance on train and val in self.plotter
+        if cnn object was given a plotter upon initialization.
+        
+        Requires network to have been initialized
+        
+        Args:
+            MX_train: ndarray (n_p, f*f*3, n1) matrix representation of X for convolution
+            MX_val: ndarray (n_p, f*f*3, n2) matrix representation of X for convolution
+            init_net: dict with 
+                Fs: ndarray (f, f, channels, nf) Filters of convolution layer
+                Fs_b: ndarray (nf,1) Convolution layer bias
+                W: List of weights for layer 2 and 3 
+                    [0]: W1 ndarray (nh, n_p * nf)
+                    [1]: W2 ndarray (K, nh)
+                b: List of biases for layer 2 and 3 
+                    [0]: b1 ndarray (nh, 1)
+                    [1]: b2 ndarray (K, 1)
+                    
+            self.GD_params
+
+        
+        """
+        assert self.network != None
+        
+        if self.plotter != None:
+            assert y_train!=None and MX_val!=None and y_val!=None
+        
+        # Deep copy of initial network used for training
+        trained_net = {}
+        trained_net["W"] = self.network["W"].copy()
+        trained_net["b"] = self.network["b"].copy()
+        trained_net["Fs"] = self.network["Fs"].copy()
+        trained_net["Fs_b"] = self.network["Fs_b"].copy()
+        
+        # Extract important numbers
+        n_f = self.network["Fs_b"].shape[0]
+        n_p = MX_train.shape[0]
+        n = MX_train.shape[2]
+        total_steps = self.GD_params["n_s"] * 2 * self.GD_params['n_cycles']        
+        
+        # Shuffle
+        perm = np.random.permutation(n)
+        X_train_shuf = MX_train[:,:, perm]
+        Y_train_shuf = Ytrain[:, perm]
+        batch_pointer = 0
+
+        if self.plotter != None:
+            # store initial performance on training and val
+            self._save_performance(MX_train, y_train,MX_val, y_val, trained_net, lam, update_step=0)
+        
+        for step in range(total_steps+1):
+            
+            # Asses if new epoch and thus batch pointer and permutation needs a reset
+            if batch_pointer + self.GD_params["n_batch"] > n:
+                perm = np.random.permutation(n)
+                batch_pointer = 0
+            
+            # Get batch indexes
+            inds = perm[batch_pointer:batch_pointer + self.GD_params["n_batch"]]   
+            MX_batch = MX_train[:, :, inds]
+            Y_batch = Ytrain[:, inds]
+            
+            # Get grads
+            h, x1, p = self._forward_pass(MX_batch, trained_net)
+            grads = self._backward_pass(
+                MX_batch, Y_batch, h, x1, p,
+                trained_net, n_f, n_p,
+                use_bias=True,
+                lam=lam)
+            
+            # Update network parameters
+            eta = self._update_eta(step) 
+               
+            for k in range(len(trained_net["W"])):
+                trained_net["W"][k] = trained_net["W"][k] - eta * grads["W"][k]
+                trained_net["b"][k] = trained_net["b"][k] - eta * grads["b"][k]
+            trained_net["Fs"] = trained_net["Fs"] - eta * grads["Fs"]
+            trained_net["Fs_b"] = trained_net["Fs_b"] - eta * grads["Fs_b"]    
+
+            # Update to next batch
+            batch_pointer += self.GD_params["n_batch"] 
+            
+            # Store intermediary performance, if desired
+            if self.plotter != None and (step % 100 == 0 or step == total_steps - 1): 
+                self._save_performance(MX_train, y_train,MX_val, y_val, trained_net, lam, step) 
+        
+        self.network = trained_net
 
     
-    def set_learning_parameters(self, n_batch=100, eta_min = 1e-5, eta_max = 1e-1, n_s=500, half_cycles=2 ):
+    def set_learning_parameters(self, n_batch=100, eta_min = 1e-5, eta_max = 1e-1, n_s=500, n_cycles=1 ):
+        """
+        Set parameters for cyclical learning
+        
+        sets:
+            self.GD_params: dict with
+                n_batch: int    Number of samples per batch
+                eta_min: float  Minimum learning rate, used when updating params in backpropagation
+                eta_max: float  Maximum learning rate, used when updating params in backpropagation
+                n_s:    int     Stepsize. The number if steps t for each half-cycle. 
+                                Usually chosen as n_s = k * n/nb k=[2,8]
+                n_cycles: int   How many cycles we should train for. 1 cycle =2*n_s steps
+        """
+        
+        
         GD_params = {}
         GD_params["n_batch"] = n_batch
         GD_params["eta_min"] = eta_min 
         GD_params["eta_max"] = eta_max
-        GD_params["n_s"]=n_s # n_s=k * n/n_batch for  k=[2,8]
-        GD_params["half_cycles"]=half_cycles # Makes sure it is an even number so we end on lowest
+        GD_params["n_s"]=n_s 
+        GD_params["n_cycles"]=n_cycles
 
         self.GD_params = GD_params
     
@@ -380,4 +487,24 @@ class CNN():
     def evaluate_accuracy(self, MX_test,  y_train):
         h, x1, p = self._forward_pass(MX_test, self.network)
         return helper_func.compute_accuracy(p, y_train)
-                                    
+    
+    def _update_eta(self, step):
+        """
+        Called in cyclical learning to get eta value. For derivation of values see paper by Smith 2015
+        
+        Args
+            step: int update step
+            uses selg.GD_params
+        returns
+            eta: float that represents learning rate
+        """
+        
+        pos_in_cycle = step % (2 * self.GD_params['n_s'])
+        cycle_is_rising = pos_in_cycle < self.GD_params['n_s']
+        
+        dif = self.GD_params["eta_max"]- self.GD_params["eta_min"]
+        
+        if cycle_is_rising:
+            return self.GD_params["eta_min"] + (pos_in_cycle)/self.GD_params["n_s"] * (dif)          
+        else:
+            return self.GD_params["eta_max"] - (pos_in_cycle-self.GD_params["n_s"])/self.GD_params["n_s"] * (dif)                   
