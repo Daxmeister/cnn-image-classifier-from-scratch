@@ -5,7 +5,7 @@ import copy
 from cnn_from_scratch import paths
 
 
-def load_batch( filename):
+def load_batch(filename):
     """ Loads and reshapes all data from one batch """
 
     with open(filename, 'rb') as fo:
@@ -22,6 +22,8 @@ def load_batch( filename):
     
     return X, Y, y
 
+    
+    
 def load_all_data( val_size=5000):
     """ Loads train, val and test data. """
     
@@ -129,15 +131,21 @@ def construct_MX(X, f, d):
                 subregion += 1 
     return MX  
 
-def save_MX_data(f=2, d=3, val_size=50, total_samples= 500, small_data=False):
+    
+
+def save_MX_data(f=2, d=3, val_size=50, total_samples= 500, small_data=False, use_label_smoothing=False, epsilon = 0.1):
     """ Loads, splits, cleans, converts X into MX and saves data (if not already exists) 
     args
         total_samples only used if small_data to dictate sample size
     returns
         file_location: pathlib object with location of stored data
         """
-    file_location = paths.PROCESSED_DATA / f"dataset_f{f}_d{d}_val{val_size}_total_samples{total_samples}_smalldata{small_data}_.npz"
+    #file_location = paths.PROCESSED_DATA / f"dataset_f{f}_d{d}_val{val_size}_total_samples{total_samples}_smalldata{small_data}_.npz"
     
+    file_location = paths.PROCESSED_DATA / (
+        f"dataset_f{f}_d{d}_val{val_size}_total_samples{total_samples}"
+        f"_smalldata{small_data}_smooth{use_label_smoothing}_eps{epsilon}.npz"
+    )
     if file_location.exists():
         print("Loading cached data set")
         return file_location
@@ -148,6 +156,8 @@ def save_MX_data(f=2, d=3, val_size=50, total_samples= 500, small_data=False):
         X_tr, Y_tr, y_tr, X_val, Y_val, y_val, X_te, Y_te, y_te  = load_all_data(val_size) 
     
     X_tr_clean, X_val_clean, X_test_clean = pre_processing(X_tr, X_val, X_te)
+    if use_label_smoothing == True:
+        Y_tr = get_smooth_labels(Y_tr, epsilon)
     
     print("Building MX for training data")
     MX_tr = construct_MX(X_tr_clean, f, d)
@@ -189,8 +199,9 @@ def save_MX_data(f=2, d=3, val_size=50, total_samples= 500, small_data=False):
     
     return file_location
     
-def get_MX_data(f=2, d=3, val_size=1000, total_samples= 500, small_data=False):
+def get_MX_data(f=2, d=3, val_size=1000, total_samples= 500, small_data=False, use_label_smoothing=False, epsilon=0.1):
     """ Gets data. Checks if it already exists, if not, store it first and then load it. 
+    use_label_smoothing: boolean flag for labelsmoothing with epsilon as parameter
     
     return
         dict[str, np.ndarray]
@@ -199,5 +210,17 @@ def get_MX_data(f=2, d=3, val_size=1000, total_samples= 500, small_data=False):
                 MX_val, Y_val, y_val,
                 MX_test, Y_te, y_te
     """
-    path = save_MX_data(f, d, val_size, total_samples, small_data)
+    path = save_MX_data(f, d, val_size, total_samples, small_data, use_label_smoothing=use_label_smoothing, epsilon=epsilon)
     return dict(np.load(path))
+
+def get_smooth_labels(Y_train, epsilon=0.1):
+    """ Applies label smoothing to one-hot encoded representation of true labels
+    True label: 1-epsilon
+    Other labels: epsilon / (K-1)
+    
+    returns
+        ndarray (K, n) with smooth labels
+    """
+    K = Y_train.shape[0]
+ 
+    return (1 - epsilon) * Y_train + (epsilon / (K-1)) * (1-Y_train)
