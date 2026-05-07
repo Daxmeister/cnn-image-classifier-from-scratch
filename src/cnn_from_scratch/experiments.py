@@ -81,20 +81,22 @@ def do_ex_3_1():
         fig.savefig(paths.PLOTS / "ii_plots.png")
         plt.close(fig)
    
-#do_ex_3_1()
 
 
 
-def train_and_eval_net_increaseing_cycle(f=4, nf=10, nh=50, plot_filename="iii_plots.png"):
-    data = data_handling.get_MX_data(f, d=3, val_size=1000, small_data=False)
+def train_and_eval_net_increaseing_cycle(f=4, nf=10, nh=50, plot_filename="iii_plots.png", 
+                                         n_cycles=3, n_s=800, lam=0.003,
+                                         use_label_smoothing=False, epsilon=0.1):
+    
+    data = data_handling.get_MX_data(f, d=3, val_size=1000, small_data=False, use_label_smoothing=use_label_smoothing, epsilon=epsilon)
 
     conv = convolver.Convolver()
     plot_device = plotter.Plotter()
     cnn_net = cnn.CNN(conv, plot_device)
-    cnn_net.set_learning_parameters(n_batch=100, eta_min = 1e-5, eta_max = 1e-1, n_s=800, n_cycles=3)
+    cnn_net.set_learning_parameters(n_batch=100, eta_min = 1e-5, eta_max = 1e-1, n_s=n_s, n_cycles=n_cycles)
     cnn_net.init_network(nh, nf, f)
 
-    cnn_net.training_cyclical_increasing_cycle_length(data['MX_tr'], data['Y_tr'], data['y_tr'], data['MX_test'], data['y_te'], lam=0.003)
+    cnn_net.training_cyclical_increasing_cycle_length(data['MX_tr'], data['Y_tr'], data['y_tr'], data['MX_test'], data['y_te'], lam=lam)
 
 
     plot_device.plot("Test plot cyclical", paths.PLOTS / plot_filename)
@@ -116,4 +118,35 @@ def do_ex_3_2():
             plot_filename=f"iii_plot{arch['name']}.png"
         )
 
-do_ex_3_2()
+
+def do_ex_4_1():
+    architectures = [
+        {"name": "Arch5_not_smooth", "f": 4, "nf": 40, "nh": 300},
+    ]
+    for arch in architectures:
+        train_and_eval_net_increaseing_cycle(
+            f=arch["f"],
+            nf=arch["nf"],
+            nh=arch["nh"],
+            plot_filename=f"iv_plot{arch['name']}.png",
+            n_s=800,
+            n_cycles=4,
+            lam=0.0025
+        )
+
+def do_ex_4_2():
+    architectures = [
+        {"name": "Arch5_smooth_lam=0.002", "f": 4, "nf": 40, "nh": 300},
+    ]
+    for arch in architectures:
+        train_and_eval_net_increaseing_cycle(
+            f=arch["f"],
+            nf=arch["nf"],
+            nh=arch["nh"],
+            plot_filename=f"iv_plot{arch['name']}.png",
+            n_s=800,
+            n_cycles=4,
+            lam=0.002,
+            use_label_smoothing=True,
+            epsilon=0.1
+        )

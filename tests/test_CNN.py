@@ -164,6 +164,7 @@ def test_compare_analytical_and_numerical_grads_w_cost(dbg, cnn_obj, epsilon):
         added_norms = np.linalg.norm(analytical_grads["W"][i]) + np.linalg.norm(numerical_grads["W"][i])
         eps = 10**(-6)
         den = max(eps, added_norms)
+        print(f"Weight number {i} difference: {num/den}")
         assert num/den <= eps
     
     # Compare bias gradients
@@ -172,6 +173,7 @@ def test_compare_analytical_and_numerical_grads_w_cost(dbg, cnn_obj, epsilon):
         added_norms = np.linalg.norm(analytical_grads["b"][i]) + np.linalg.norm(numerical_grads["b"][i])
         eps = 10**(-6)
         den = max(eps, added_norms)
+        print(f"bias number {i} difference: {num/den}")
         assert num/den <= eps
 
     # Compare filter gradianets
@@ -182,6 +184,7 @@ def test_compare_analytical_and_numerical_grads_w_cost(dbg, cnn_obj, epsilon):
     added_norms = np.linalg.norm(Fs_analytical_flat) + np.linalg.norm(Fs_num_flat)
     eps = 10**(-6)
     den = max(eps, added_norms)
+    print(f"Fs difference: {num/den}")
     assert num/den <= eps
     
     # Compare convolution layer bias gradients
@@ -189,6 +192,7 @@ def test_compare_analytical_and_numerical_grads_w_cost(dbg, cnn_obj, epsilon):
     added_norms = np.linalg.norm(analytical_grads["Fs_b"]) + np.linalg.norm(numerical_grads["Fs_b"])
     eps = 10**(-6)
     den = max(eps, added_norms)
+    print(f"Fs_b difference: {num/den}")
     assert num/den <= eps
     
 
