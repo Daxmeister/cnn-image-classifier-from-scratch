@@ -40,7 +40,7 @@ class Plotter():
         
         # Loss
         axs[0].plot(x_axis,self.train_loss_per_epoch, label="Train Loss")
-        axs[0].plot(x_axis,self.val_loss_per_epoch, label="Validation Loss")
+        axs[0].plot(x_axis,self.val_loss_per_epoch, label="Test Loss")
         axs[0].set_title("Loss per Epoch ")
         if self.update_step_vector != None:
             axs[0].set_xlabel("Update Step")
@@ -54,7 +54,7 @@ class Plotter():
 
         # Cost
         axs[1].plot(x_axis,self.train_cost_per_epoch, label="Train Cost")
-        axs[1].plot(x_axis,self.val_cost_per_epoch, label="Validation Cost")
+        axs[1].plot(x_axis,self.val_cost_per_epoch, label="Test Cost")
         axs[1].set_title("Cost per Epoch ")
         if self.update_step_vector != None:
             axs[1].set_xlabel("Update Step")
@@ -67,7 +67,7 @@ class Plotter():
         
         if self.train_accuracy_per_epoch != None:
             axs[2].plot(x_axis,self.train_accuracy_per_epoch, label="Train accuracy")
-            axs[2].plot(x_axis,self.val_accuracy_per_epoch, label="Validation accuracy")
+            axs[2].plot(x_axis,self.val_accuracy_per_epoch, label="Test accuracy")
             axs[2].set_title("Accuracy per Epoch ")
             axs[2].set_xlabel("Update Step")
             axs[2].set_ylabel("Accuracy")
